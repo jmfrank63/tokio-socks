@@ -15,9 +15,9 @@ use tokio_socks::{
     Result,
 };
 
-pub const UNIX_PROXY_ADDR: &'static str = "/tmp/proxy.s";
-pub const PROXY_ADDR: &'static str = "127.0.0.1:41080";
-pub const ECHO_SERVER_ADDR: &'static str = "localhost:10007";
+pub const UNIX_PROXY_ADDR: &str = "/tmp/proxy.s";
+pub const PROXY_ADDR: &str = "127.0.0.1:41080";
+pub const ECHO_SERVER_ADDR: &str = "127.0.0.1:10007";
 pub const MSG: &[u8] = b"hello";
 
 pub async fn echo_server() -> Result<()> {

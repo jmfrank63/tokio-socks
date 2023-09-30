@@ -6,7 +6,7 @@ use std::{
     net::{Ipv4Addr, Ipv6Addr, SocketAddr},
     ops::{Deref, DerefMut},
     pin::Pin,
-    task::{Context, Poll},
+    task::{Context, Poll}, os::fd::AsRawFd,
 };
 use tokio::{
     io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf},
@@ -177,15 +177,15 @@ where S: AsyncRead + AsyncWrite + Unpin
         .await
     }
 
-    fn validate_auth<'a>(auth: &Authentication<'a>) -> Result<()> {
+    fn validate_auth(auth: &Authentication<'_>) -> Result<()> {
         match auth {
             Authentication::Password { username, password } => {
                 let username_len = username.as_bytes().len();
-                if username_len < 1 || username_len > 255 {
+                if !(1..=255).contains(&username_len) {
                     Err(Error::InvalidAuthValues("username length should between 1 to 255"))?
                 }
                 let password_len = password.as_bytes().len();
-                if password_len < 1 || password_len > 255 {
+                if !(1..=255).contains(&password_len) {
                     Err(Error::InvalidAuthValues("password length should between 1 to 255"))?
                 }
             },
@@ -248,6 +248,14 @@ where S: AsyncRead + AsyncWrite + Unpin
                 TargetAddr::Domain(domain.into(), *port)
             },
         }
+    }
+}
+
+impl <S> Socks5Stream<S>
+where S: AsRawFd
+{
+    fn as_raw_fd(&self) -> i32 {
+        self.socket.as_raw_fd()
     }
 }
 
@@ -334,7 +342,7 @@ where S: Stream<Item = Result<SocketAddr>> + Unpin
             let password_bytes = password.as_bytes();
             let password_len = password_bytes.len();
             self.len = 3 + username_len + password_len;
-            self.buf[(2 + username_len)] = password_len as u8;
+            self.buf[2 + username_len] = password_len as u8;
             self.buf[(3 + username_len)..self.len].copy_from_slice(password_bytes);
         } else {
             unreachable!()
@@ -489,7 +497,7 @@ where S: Stream<Item = Result<SocketAddr>> + Unpin
             },
             // Domain
             0x03 => {
-                let domain_bytes = (&self.buf[5..(self.len - 2)]).to_vec();
+                let domain_bytes = self.buf[5..(self.len - 2)].to_vec();
                 let domain = String::from_utf8(domain_bytes)
                     .map_err(|_| Error::InvalidTargetAddress("not a valid UTF-8 string"))?;
                 let port = u16::from_be_bytes([self.buf[self.len - 2], self.buf[self.len - 1]]);

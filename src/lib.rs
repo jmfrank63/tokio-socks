@@ -282,7 +282,7 @@ mod tests {
     #[test]
     fn converts_socket_addr_ref_to_proxy_addrs() -> Result<()> {
         let addr = SocketAddr::from(([1, 1, 1, 1], 443));
-        let res = to_proxy_addrs(&addr)?;
+        let res = to_proxy_addrs(addr)?;
         assert_eq!(&res[..], &[addr]);
         Ok(())
     }
@@ -314,7 +314,7 @@ mod tests {
     #[test]
     fn converts_socket_addr_ref_to_target_addr() -> Result<()> {
         let addr = SocketAddr::from(([1, 1, 1, 1], 443));
-        let res = into_target_addr(&addr)?;
+        let res = into_target_addr(addr)?;
         assert_eq!(TargetAddr::Ip(addr), res);
         Ok(())
     }
