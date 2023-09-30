@@ -5,8 +5,9 @@ use std::{
     io,
     net::{Ipv4Addr, Ipv6Addr, SocketAddr},
     ops::{Deref, DerefMut},
+    os::fd::AsRawFd,
     pin::Pin,
-    task::{Context, Poll}, os::fd::AsRawFd,
+    task::{Context, Poll},
 };
 use tokio::{
     io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf},
@@ -138,8 +139,22 @@ impl Socks5Stream<TcpStream> {
     }
 }
 
+impl AsRawFd for Socks5Stream<TcpStream> {
+    fn as_raw_fd(&self) -> std::os::fd::RawFd {
+        // Access the inner TcpStream and call as_raw_fd() on it.
+        self.as_ref().as_raw_fd()
+    }
+}
+
+impl AsRef<TcpStream> for Socks5Stream<TcpStream> {
+    fn as_ref(&self) -> &TcpStream {
+        self
+    }
+}
+
 impl<S> Socks5Stream<S>
-where S: AsyncRead + AsyncWrite + Unpin
+where
+    S: AsyncRead + AsyncWrite + Unpin,
 {
     /// Connects to a target server through a SOCKS5 proxy given a socket to it.
     ///
@@ -148,7 +163,9 @@ where S: AsyncRead + AsyncWrite + Unpin
     /// It propagates the error that occurs in the conversion from `T` to
     /// `TargetAddr`.
     pub async fn connect_with_socket<'t, T>(socket: S, target: T) -> Result<Socks5Stream<S>>
-    where T: IntoTargetAddr<'t> {
+    where
+        T: IntoTargetAddr<'t>,
+    {
         Self::execute_command_with_socket(socket, target, Authentication::None, Command::Connect).await
     }
 
@@ -198,7 +215,9 @@ where S: AsyncRead + AsyncWrite + Unpin
     /// Resolve the domain name to an ip using special Tor Resolve command, by
     /// connecting to a Tor compatible proxy given a socket to it.
     pub async fn tor_resolve_with_socket<'t, T>(socket: S, target: T) -> Result<TargetAddr<'static>>
-    where T: IntoTargetAddr<'t> {
+    where
+        T: IntoTargetAddr<'t>,
+    {
         let sock = Self::execute_command_with_socket(socket, target, Authentication::None, Command::TorResolve).await?;
 
         Ok(sock.target_addr().to_owned())
@@ -209,7 +228,9 @@ where S: AsyncRead + AsyncWrite + Unpin
     /// PTR command, by connecting to a Tor compatible proxy given a socket
     /// to it.
     pub async fn tor_resolve_ptr_with_socket<'t, T>(socket: S, target: T) -> Result<TargetAddr<'static>>
-    where T: IntoTargetAddr<'t> {
+    where
+        T: IntoTargetAddr<'t>,
+    {
         let sock =
             Self::execute_command_with_socket(socket, target, Authentication::None, Command::TorResolvePtr).await?;
 
@@ -251,14 +272,6 @@ where S: AsyncRead + AsyncWrite + Unpin
     }
 }
 
-impl <S> Socks5Stream<S>
-where S: AsRawFd
-{
-    fn as_raw_fd(&self) -> i32 {
-        self.socket.as_raw_fd()
-    }
-}
-
 /// A `Future` which resolves to a socket to the target server through proxy.
 pub struct SocksConnector<'a, 't, S> {
     auth: Authentication<'a>,
@@ -271,7 +284,8 @@ pub struct SocksConnector<'a, 't, S> {
 }
 
 impl<'a, 't, S> SocksConnector<'a, 't, S>
-where S: Stream<Item = Result<SocketAddr>> + Unpin
+where
+    S: Stream<Item = Result<SocketAddr>> + Unpin,
 {
     fn new(auth: Authentication<'a>, command: Command, proxy: Fuse<S>, target: TargetAddr<'t>) -> Self {
         SocksConnector {
@@ -298,8 +312,7 @@ where S: Stream<Item = Result<SocketAddr>> + Unpin
     pub async fn execute_with_socket<T: AsyncRead + AsyncWrite + Unpin>(
         &mut self,
         mut socket: T,
-    ) -> Result<Socks5Stream<T>>
-    {
+    ) -> Result<Socks5Stream<T>> {
         self.authenticate(&mut socket).await?;
 
         // Send request address that should be proxied
@@ -584,7 +597,8 @@ impl Socks5Listener<TcpStream> {
 }
 
 impl<S> Socks5Listener<S>
-where S: AsyncRead + AsyncWrite + Unpin
+where
+    S: AsyncRead + AsyncWrite + Unpin,
 {
     /// Initiates a BIND request to the specified proxy using the given socket
     /// to it.
@@ -597,7 +611,9 @@ where S: AsyncRead + AsyncWrite + Unpin
     /// It propagates the error that occurs in the conversion from `T` to
     /// `TargetAddr`.
     pub async fn bind_with_socket<'t, T>(socket: S, target: T) -> Result<Socks5Listener<S>>
-    where T: IntoTargetAddr<'t> {
+    where
+        T: IntoTargetAddr<'t>,
+    {
         Self::bind_with_auth_and_socket(Authentication::None, socket, target).await
     }
 
@@ -672,7 +688,8 @@ where S: AsyncRead + AsyncWrite + Unpin
 }
 
 impl<T> AsyncRead for Socks5Stream<T>
-where T: AsyncRead + Unpin
+where
+    T: AsyncRead + Unpin,
 {
     fn poll_read(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<io::Result<()>> {
         AsyncRead::poll_read(Pin::new(&mut self.socket), cx, buf)
@@ -680,7 +697,8 @@ where T: AsyncRead + Unpin
 }
 
 impl<T> AsyncWrite for Socks5Stream<T>
-where T: AsyncWrite + Unpin
+where
+    T: AsyncWrite + Unpin,
 {
     fn poll_write(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
         AsyncWrite::poll_write(Pin::new(&mut self.socket), cx, buf)
